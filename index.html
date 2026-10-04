@@ -244,6 +244,7 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .reader-body table{border-collapse:collapse;width:100%;font-size:12px;margin:8px 0;display:block;overflow-x:auto}
 .reader-body th,.reader-body td{border:1px solid var(--border);padding:4px 6px;text-align:left;vertical-align:top}
 .reader-body th{background:var(--surface2)}
+.reader-body a.xref{color:var(--accent);font-weight:700;text-decoration:underline;cursor:pointer}
 .reader-body .hl{animation:hl 2.5s ease}
 @keyframes hl{0%{background:rgba(139,105,20,.35)}100%{background:var(--surface)}}
 .setting-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
@@ -314,7 +315,7 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 
 <div id="reader" class="reader">
   <div class="reader-head">
-    <button class="back-btn" onclick="closeReader()">← Back</button>
+    <button class="back-btn" id="reader-back" onclick="readerBack()">✕ Close</button>
     <span class="quiz-title" id="reader-title"></span>
   </div>
   <div class="reader-body" id="reader-body"></div>
@@ -780,15 +781,27 @@ function finish(){
 }
 
 /* ---------- reader ---------- */
-function openReader(t,id,heading){
+let RSTACK=[], RCUR=null;
+const READER_KEY='<div class="note" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px"><b>Item key:</b> <b>NR</b> = examiner Nav/Radio question sheet · <b>S</b> = scenario · <b>E</b> = EDTO scenario · <b>OB</b> = oral bank question. Tap any underlined item or topic number to jump there; Back returns you here.</div>';
+function openReader(t,id,heading){RSTACK=[];showRef(t,id,heading)}
+function showRef(t,id,heading){
   const r=document.getElementById('reader'),b=document.getElementById('reader-body');
+  t=String(t);RCUR={t,id};
   document.getElementById('reader-title').textContent=t==='flags'?'Flags and corrections':`${t}. ${TOPIC[t].title}`;
-  b.innerHTML=REF[t]||'<div class="empty">Not in the reference.</div>';r.classList.add('open');b.scrollTop=0;
+  b.innerHTML=READER_KEY+(REF[t]||'<div class="empty">Not in the reference.</div>');r.classList.add('open');b.scrollTop=0;
+  document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';
   let el=id?document.getElementById('ref-'+id):null;
   if(!el&&heading){const hs=[...b.querySelectorAll('h4,h5,p.q')];el=hs.find(x=>x.textContent.trim().toLowerCase().startsWith(heading.toLowerCase().slice(0,30)))}
   if(el){setTimeout(()=>{el.scrollIntoView({block:'start'});el.classList.add('hl')},30)}
 }
-function closeReader(){document.getElementById('reader').classList.remove('open')}
+function readerJump(t,id){const b=document.getElementById('reader-body');RSTACK.push({t:RCUR.t,top:b.scrollTop});
+  if(String(t)===RCUR.t&&id){const el=document.getElementById('ref-'+id);if(el){el.scrollIntoView({block:'start'});el.classList.remove('hl');void el.offsetWidth;el.classList.add('hl');document.getElementById('reader-back').textContent='← Back';return}}
+  showRef(t,id)}
+function readerBack(){const p=RSTACK.pop();if(!p){closeReader();return}const b=document.getElementById('reader-body');
+  if(p.t!==RCUR.t)showRef(p.t);RCUR.t=p.t;document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';setTimeout(()=>{b.scrollTop=p.top},40)}
+function closeReader(){document.getElementById('reader').classList.remove('open');RSTACK=[]}
+document.addEventListener('click',e=>{const a=e.target.closest('a.xref');if(!a)return;e.preventDefault();
+  if(a.dataset.x)readerJump(XREF[a.dataset.x],a.dataset.x);else if(a.dataset.t)readerJump(a.dataset.t)});
 
 /* ---------- flags, export, import ---------- */
 function toggleFlag(id,btn){if(MEM.flags[id])delete MEM.flags[id];else MEM.flags[id]=1;saveMem();btn.classList.toggle('flagged',!!MEM.flags[id])}
