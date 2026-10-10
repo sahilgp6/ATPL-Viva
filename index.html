@@ -260,18 +260,6 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px}
 .check-btn{width:100%;margin-top:10px}
 .hidden{display:none!important}
-/* listen */
-.rl-bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;gap:8px;z-index:600;justify-content:center}
-.rl-bar.open{display:flex}
-.pbtn{min-width:52px;padding:12px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);font-size:18px;font-weight:700;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent}
-.pbtn.main{background:var(--accent2);color:#fff;border-color:var(--accent2);min-width:70px}
-.pbtn.sm{font-size:13px}
-.reader-body .speaking{background:rgba(139,105,20,.18)!important;border-radius:4px;outline:2px solid rgba(139,105,20,.35)}
-.reader.listening .reader-body{padding-bottom:110px}
-.listen-btn{background:var(--accent2);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto}
-.lq-think{margin-top:14px;padding:12px;border-radius:8px;background:rgba(26,58,107,.08);color:var(--accent);font-weight:700;text-align:center}
-.lq-ctrl{display:flex;gap:8px;justify-content:center;margin:12px 0}
-.deck-row .lbtn{margin-left:8px;padding:6px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);font-size:14px}
 </style>
 </head>
 <body>
@@ -329,40 +317,8 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
   <div class="reader-head">
     <button class="back-btn" id="reader-back" onclick="readerBack()">✕ Close</button>
     <span class="quiz-title" id="reader-title"></span>
-    <button class="listen-btn" onclick="rlStart()">🔊 Listen</button>
   </div>
   <div class="reader-body" id="reader-body"></div>
-  <div class="rl-bar" id="rl-bar">
-    <button class="pbtn" onclick="rlJump(-1)">⏮</button>
-    <button class="pbtn main" id="rl-play" onclick="rlToggle()">⏸</button>
-    <button class="pbtn" onclick="rlJump(1)">⏭</button>
-    <button class="pbtn sm" id="rl-rate" onclick="cycleRate()">1×</button>
-    <button class="pbtn sm" onclick="rlStop()">✕</button>
-  </div>
-</div>
-
-<div id="listen" class="screen">
-  <div class="quiz-header">
-    <div class="quiz-header-top">
-      <button class="back-btn" onclick="lqEnd()">← End</button>
-      <span class="quiz-title" id="lq-title"></span>
-    </div>
-    <div class="prog-bar-wrap"><div class="prog-bar" id="lq-bar"></div></div>
-    <div class="prog-text" id="lq-prog"></div>
-  </div>
-  <div class="quiz-body">
-    <div class="lq-ctrl">
-      <button class="pbtn" onclick="lqPrev()">⏮</button>
-      <button class="pbtn" onclick="lqRepeat()">🔁</button>
-      <button class="pbtn main" id="lq-play" onclick="lqToggle()">⏸</button>
-      <button class="pbtn sm" onclick="lqReveal()">Answer</button>
-      <button class="pbtn" onclick="lqNext()">⏭</button>
-      <button class="pbtn sm" id="lq-rate" onclick="cycleRate()">1×</button>
-    </div>
-    <div class="qcard" id="lq-card"></div>
-    <div class="grade-row"><button class="gbtn g0" id="lq-m" onclick="lqMark(0)">✗ Missed it</button><button class="gbtn g2" id="lq-k" onclick="lqMark(1)">✓ Knew it</button></div>
-    <div class="note" style="text-align:center">Marking is optional; marked cards count towards your progress and spaced repetition.</div>
-  </div>
 </div>
 
 <script src="data.js"></script>
@@ -525,7 +481,6 @@ function renderToday(){
    <div class="note">Due cards first, then new cards ranked by board frequency. ${p.unseen.length} cards not yet seen; the new-card quota spreads them over the days left.</div></div>`;
   h+=`<button class="mock-btn" onclick="startMock()">🎓 Mock viva (mixed, timed)</button>`;
   h+=`<button class="mock-btn" onclick="startExaminer()">🗣️ Examiner mode (say it aloud, timed)</button>`;
-  h+=`<button class="mock-btn" onclick="listenDeck('daily')">🎧 Listen: hands-free quiz of today's cards</button>`;
   const w=weakCards().length;
   h+=`<button class="weak-btn" onclick="startDeck('weak')" ${w?'':'disabled'}>🔁 Weak areas (${w})</button>`;
   h+=`<div class="section-label">Weakest topics</div>`+weakTopicsHtml();
@@ -553,8 +508,7 @@ function renderTopics(){
        <span class="ch-chip" onclick="startTopic(${n},'recall')">Say it</span>
        <span class="ch-chip" onclick="startTopic(${n},'facts')">MCQ &amp; numbers</span>
        <span class="ch-chip" onclick="startTopic(${n},'all')">All (shuffled)</span>
-       <span class="ch-chip" onclick="openReader(${n})">📖 Read</span>
-       <span class="ch-chip" onclick="listenTopic(${n})">🎧 Listen</span></div></div>`});
+       <span class="ch-chip" onclick="openReader(${n})">📖 Read</span></div></div>`});
   });
   h+='</div>';
   document.getElementById('tab-topics').innerHTML=h;
@@ -574,7 +528,7 @@ const DECKS=[
 function renderDecks(){
   let h='<div class="deck-list" style="padding-top:12px">';
   DECKS.forEach(([k,ic,t,s])=>{const n=k==='gen'?'∞':deckCards(k).length;
-    h+=`<div class="deck-row" onclick="startDeck('${k}')"><span class="deck-ic">${ic}</span><span><div class="deck-t">${t}</div><div class="deck-s">${s}</div></span><span class="deck-n">${n}</span>${k==='flagged'||k==='draw'?'':`<span class="lbtn" onclick="event.stopPropagation();listenDeck('${k}')">🎧</span>`}</div>`});
+    h+=`<div class="deck-row" onclick="startDeck('${k}')"><span class="deck-ic">${ic}</span><span><div class="deck-t">${t}</div><div class="deck-s">${s}</div></span><span class="deck-n">${n}</span></div>`});
   h+=`<div class="deck-row" onclick="openReader('flags')"><span class="deck-ic">📖</span><span><div class="deck-t">Read: flags and corrections</div><div class="deck-s">Part 8 of the reference</div></span></div>`;
   h+='</div>';
   document.getElementById('tab-decks').innerHTML=h;
@@ -591,12 +545,6 @@ function renderProgress(){
   <div class="setting-row"><label>Daily session size</label><input type="number" min="10" max="200" value="${MEM.settings.daily}" style="width:80px" onchange="MEM.settings.daily=Math.max(10,+this.value||40);saveMem()"></div>
   <div class="setting-row"><label>Examiner mode seconds per question</label><input type="number" min="20" max="300" value="${MEM.settings.exTime}" style="width:80px" onchange="MEM.settings.exTime=Math.max(20,+this.value||60);saveMem()"></div>
   <div class="setting-row"><label>Show typing box on "say it" cards</label><input type="checkbox" ${MEM.settings.typing?'checked':''} onchange="MEM.settings.typing=this.checked;saveMem()"></div>
-  <div class="section-label">Listening</div>
-  <div class="setting-row"><label>Voice</label><select style="max-width:55%" onchange="setVoice(this.value)">${voiceOptions()}</select></div>
-  <div class="setting-row"><label>Speed</label><select onchange="MEM.settings.rate=+this.value;saveMem()">${[0.8,0.9,1,1.1,1.25,1.5,1.75].map(r=>`<option value="${r}" ${Math.abs(ttsSettings().rate-r)<.01?'selected':''}>${r}×</option>`).join('')}</select></div>
-  <div class="setting-row"><label>Thinking time before the answer (s)</label><input type="number" min="2" max="40" value="${ttsSettings().lpause}" style="width:70px" onchange="MEM.settings.lpause=Math.max(2,+this.value||8);saveMem()"></div>
-  <div class="sync-row"><button class="sync-btn" onclick="voiceTest()">🔊 Test voice</button></div>
-  <div class="note">For a more natural voice on iPhone: Settings → Accessibility → Spoken Content → Voices → English, download an Enhanced or Premium voice, then pick it here. Keep the ring switch off silent if you hear nothing.</div>
   <div class="section-label">Backup</div>
   <div class="note">Progress lives only in this browser. Export regularly, and import on another device to carry on.</div>
   <div class="sync-row"><button class="sync-btn export" onclick="exportProgress()">⬆️ Export</button><button class="sync-btn import" onclick="importProgress()">⬇️ Import</button></div>
@@ -846,12 +794,12 @@ function showRef(t,id,heading){
   if(!el&&heading){const hs=[...b.querySelectorAll('h4,h5,p.q')];el=hs.find(x=>x.textContent.trim().toLowerCase().startsWith(heading.toLowerCase().slice(0,30)))}
   if(el){setTimeout(()=>{el.scrollIntoView({block:'start'});el.classList.add('hl')},30)}
 }
-function readerJump(t,id){if(RL.on)rlStop();const b=document.getElementById('reader-body');RSTACK.push({t:RCUR.t,top:b.scrollTop});
+function readerJump(t,id){const b=document.getElementById('reader-body');RSTACK.push({t:RCUR.t,top:b.scrollTop});
   if(String(t)===RCUR.t&&id){const el=document.getElementById('ref-'+id);if(el){el.scrollIntoView({block:'start'});el.classList.remove('hl');void el.offsetWidth;el.classList.add('hl');document.getElementById('reader-back').textContent='← Back';return}}
   showRef(t,id)}
 function readerBack(){const p=RSTACK.pop();if(!p){closeReader();return}const b=document.getElementById('reader-body');
   if(p.t!==RCUR.t)showRef(p.t);RCUR.t=p.t;document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';setTimeout(()=>{b.scrollTop=p.top},40)}
-function closeReader(){rlStop();document.getElementById('reader').classList.remove('open');RSTACK=[]}
+function closeReader(){document.getElementById('reader').classList.remove('open');RSTACK=[]}
 document.addEventListener('click',e=>{const a=e.target.closest('a.xref');if(!a)return;e.preventDefault();
   if(a.dataset.x)readerJump(XREF[a.dataset.x],a.dataset.x);else if(a.dataset.t)readerJump(a.dataset.t)});
 
@@ -874,164 +822,7 @@ function resetMem(){if(confirm('Reset ALL progress on this device? Export first 
 
 /* ---------- boot ---------- */
 function registerSW(){if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{})}
-/* ===================== LISTEN: read-aloud and hands-free quiz (device voice, works offline) ===================== */
-const TTS={voice:null,voices:[]};
-function ttsSettings(){const s=(typeof MEM!=='undefined'&&MEM)?MEM.settings:{};if(s.rate===undefined)s.rate=1;if(s.lpause===undefined)s.lpause=8;if(s.voiceName===undefined)s.voiceName='';return s}
-function loadVoices(){
-  if(!('speechSynthesis' in window))return;
-  const all=speechSynthesis.getVoices().filter(v=>/^en/i.test(v.lang));
-  const score=v=>(/premium/i.test(v.name)?40:/enhanced/i.test(v.name)?30:0)+(/en-IN/i.test(v.lang)?6:/en-GB/i.test(v.lang)?5:/en-AU/i.test(v.lang)?4:/en-US/i.test(v.lang)?3:1)+(v.localService?2:0);
-  TTS.voices=all.sort((a,b)=>score(b)-score(a));
-  const s=ttsSettings();TTS.voice=TTS.voices.find(v=>v.name===s.voiceName)||TTS.voices[0]||null;
-}
-function initVoices(){try{if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}}catch(e){}}
-
-/* make text sound right: no citations, units spoken, IDs spelled */
-function speakify(t){
-  t=String(t||'');
-  t=t.replace(/\\?\[[^\]]{0,120}\]/g,' ');                     // citations [OM-A 41.1.9.3]
-  t=t.replace(/\*\*|__|`|#+\s/g,'').replace(/(^|\s)\*(\S)/g,'$1$2').replace(/(\S)\*(\s|$)/g,'$1$2');
-  t=t.replace(/^\s*[-•]\s+/gm,'').replace(/^\s*(\d+)[.)]\s+/gm,'$1. ');
-  t=t.replace(/\bFL\s?(\d{2,3})\b/g,(m,d)=>'flight level '+d.split('').join(' '));
-  t=t.replace(/\b(NR|OB)(\d+)\b/g,(m,a,d)=>a.split('').join(' ')+' '+d).replace(/\b([SE])(\d{1,2})\b(?![.,]\d)/g,'$1 $2');
-  t=t.replace(/°\s?M\b/g,' degrees magnetic').replace(/°\s?C\b/g,' degrees Celsius').replace(/°\s?F\b/g,' degrees Fahrenheit').replace(/°/g,' degrees');
-  t=t.replace(/±/g,' plus or minus ').replace(/≥/g,' at least ').replace(/≤/g,' at most ').replace(/×/g,' times ').replace(/→/g,', then ').replace(/≈|~/g,' about ');
-  t=t.replace(/\bft\s?\/\s?min\b/g,'feet per minute').replace(/(\d)\s?fpm\b/g,'$1 feet per minute');
-  t=t.replace(/(\d)\s?ft\b/g,'$1 feet').replace(/\bft\b/g,'feet').replace(/(\d)\s?NM\b/g,'$1 nautical miles').replace(/\bNM\b/g,'nautical miles');
-  t=t.replace(/(\d)\s?kts?\b/g,'$1 knots').replace(/(\d)\s?min\b/g,'$1 minutes').replace(/(\d)\s?h\b/g,'$1 hours').replace(/(\d)\s?s\b/g,'$1 seconds');
-  t=t.replace(/(\d)\s?km\b/g,'$1 kilometres').replace(/(\d)\s?m\b/g,'$1 metres').replace(/(\d)\s?kg\b/g,'$1 kilograms').replace(/(\d)\s?t\b/g,'$1 tonnes');
-  t=t.replace(/(\d)\s?%/g,'$1 percent').replace(/\bpsid?\b/g,'P S I').replace(/\b1:60\b/g,'1 in 60');
-  t=t.replace(/\be\.g\.\s?/gi,'for example ').replace(/\bi\.e\.\s?/gi,'that is ').replace(/\bvs\.?\s/gi,'versus ').replace(/\betc\./gi,'etcetera');
-  t=t.replace(/\bOM-A\b/g,'O M A').replace(/\bAIX\b/g,'A I X').replace(/\bQRH\b/g,'Q R H').replace(/\bMEL\b/g,'M E L').replace(/\bATC\b/g,'A T C');
-  t=t.replace(/\s*\/\s*/g,' or ').replace(/\s{2,}/g,' ').replace(/\s+([.,;:])/g,'$1');
-  t=t.replace(/([.:;!?])(\s*\.)+/g,'$1');
-  return t.trim();
-}
-function chunks(t){ // iOS is happier with short utterances
-  const out=[];String(t).split(/(?<=[.!?])\s+|\n+/).forEach(s=>{s=s.trim();if(!s)return;while(s.length>220){let k=s.lastIndexOf(', ',220);if(k<80)k=220;out.push(s.slice(0,k+1));s=s.slice(k+1).trim()}if(s)out.push(s)});return out;
-}
-let SPK={q:[],onDone:null,gen:0};
-function say(text,onDone){
-  speechSynthesis.cancel();const g=++SPK.gen;SPK.q=chunks(speakify(text));SPK.onDone=onDone;
-  const next=()=>{if(g!==SPK.gen)return;if(!SPK.q.length){const f=SPK.onDone;SPK.onDone=null;f&&f();return}
-    const u=new SpeechSynthesisUtterance(SPK.q.shift());if(TTS.voice){u.voice=TTS.voice;u.lang=TTS.voice.lang}else u.lang='en-GB';
-    u.rate=ttsSettings().rate;u.onend=next;u.onerror=e=>{if(e.error!=='interrupted'&&e.error!=='canceled')next()};speechSynthesis.speak(u)};
-  next();
-}
-function hush(){SPK.gen++;SPK.q=[];SPK.onDone=null;if('speechSynthesis' in window)speechSynthesis.cancel()}
-
-/* keep the screen on while listening */
-let WAKE=null,NOSLEEP=null;
-async function wakeOn(){
-  try{if('wakeLock' in navigator){WAKE=await navigator.wakeLock.request('screen');return}}catch(e){}
-  try{if(!NOSLEEP){NOSLEEP=document.createElement('video');NOSLEEP.setAttribute('playsinline','');NOSLEEP.muted=true;NOSLEEP.loop=true;NOSLEEP.src='nosleep.mp4';NOSLEEP.style.cssText='position:fixed;width:1px;height:1px;opacity:0;pointer-events:none';document.body.appendChild(NOSLEEP)}NOSLEEP.play().catch(()=>{})}catch(e){}
-}
-function wakeOff(){try{WAKE&&WAKE.release()}catch(e){}WAKE=null;try{NOSLEEP&&NOSLEEP.pause()}catch(e){}}
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&(RL.on||LQ))wakeOn()});
-function ttsOK(){if('speechSynthesis' in window)return true;alert('This browser has no built-in voice.');return false}
-
-/* ---------- read aloud in Read ---------- */
-let RL={on:false,blocks:[],i:0,playing:false};
-function readerBlocks(){
-  const b=document.getElementById('reader-body');
-  return [...b.querySelectorAll('h3,h4,h5,p,li,tr')].filter(el=>!(el.tagName==='P'&&el.closest('li'))&&!el.closest('.note')).map(el=>{
-    let t;if(el.tagName==='LI'){const c=el.cloneNode(true);c.querySelectorAll('ul,ol,.cite').forEach(x=>x.remove());t=c.textContent}
-    else if(el.tagName==='TR'){t=[...el.children].map(td=>{const c=td.cloneNode(true);c.querySelectorAll('.cite').forEach(x=>x.remove());return c.textContent.trim()}).filter(Boolean).join('. ')}
-    else{const c=el.cloneNode(true);c.querySelectorAll('.cite').forEach(x=>x.remove());t=c.textContent}
-    return {el,t:t.trim(),item:/^H/.test(el.tagName)||el.classList.contains('q')};
-  }).filter(x=>x.t);
-}
-function rlStart(){
-  if(!ttsOK())return;RL.blocks=readerBlocks();if(!RL.blocks.length)return;
-  const b=document.getElementById('reader-body'),top=b.getBoundingClientRect().top;
-  let i=RL.blocks.findIndex(x=>x.el.getBoundingClientRect().bottom>top+40);RL.i=i<0?0:i;RL.on=true;
-  document.getElementById('rl-bar').classList.add('open');wakeOn();rlPlay();
-}
-function rlPlay(){RL.playing=true;rlPaint();const x=RL.blocks[RL.i];if(!x){rlStop();return}
-  document.querySelectorAll('#reader-body .speaking').forEach(e=>e.classList.remove('speaking'));x.el.classList.add('speaking');x.el.scrollIntoView({block:'center',behavior:'smooth'});
-  say(x.t,()=>{RL.i++;if(RL.i<RL.blocks.length)setTimeout(()=>{if(RL.playing)rlPlay()},x.item?350:150);else rlStop()})}
-function rlToggle(){if(RL.playing){RL.playing=false;hush();rlPaint()}else rlPlay()}
-function rlJump(dir){hush();let i=RL.i;
-  if(dir>0){i++;while(i<RL.blocks.length&&!RL.blocks[i].item)i++}else{i--;while(i>0&&!RL.blocks[i].item)i--;if(i<0)i=0}
-  RL.i=Math.min(i,RL.blocks.length-1);rlPlay()}
-function rlStop(){RL.on=false;RL.playing=false;hush();wakeOff();const bar=document.getElementById('rl-bar');bar&&bar.classList.remove('open');document.querySelectorAll('#reader-body .speaking').forEach(e=>e.classList.remove('speaking'))}
-function rlPaint(){const p=document.getElementById('rl-play');if(p)p.textContent=RL.playing?'⏸':'▶';const r=document.getElementById('rl-rate');if(r)r.textContent=ttsSettings().rate.toFixed(2).replace(/0$/,'')+'×'}
-function cycleRate(){const R=[0.8,0.9,1,1.1,1.25,1.5,1.75],s=ttsSettings();let k=R.findIndex(x=>x>s.rate+0.001);s.rate=R[k<0?0:k];saveMem();rlPaint();lqPaint&&lqPaint();
-  if(RL.playing){hush();rlPlay()}}
-// tap a paragraph while listening to jump there
-document.addEventListener('click',e=>{if(!RL.on||e.target.closest('a.xref')||!e.target.closest('#reader-body'))return;
-  const k=RL.blocks.findIndex(x=>x.el.contains(e.target));if(k>=0){hush();RL.i=k;rlPlay()}});
-
-/* ---------- hands-free quiz ---------- */
-let LQ=null;
-function lqSegments(c){
-  const P=ttsSettings().lpause*1000, long=['recall','chain','draw'].includes(c.type)?P*1.5:P;
-  const S=[{say:c.q,show:'q'}];
-  const md2=t=>String(t||'').replace(/\n+/g,'. ');
-  switch(c.type){
-    case 'recall':S.push({wait:long},{say:'Answer. '+md2(c.a),show:'a'});break;
-    case 'draw':S.push({wait:long},{say:'It should show. '+md2(c.a)+'. Checklist: '+(c.checklist||[]).join('. '),show:'a'});break;
-    case 'mcq':S.push({say:'Options. '+c.o.map((o,i)=>'ABCDEF'[i]+'. '+o).join('. ')},{wait:P},{say:'The answer is: '+c.o[c.a]+'. '+(c.why||''),show:'a'});break;
-    case 'num':case 'gen':S.push({wait:P},{say:'Answer: '+c.ans+' '+(c.unit||'')+'. '+(c.why||''),show:'a'});break;
-    case 'order':S.push({wait:P},{say:'In order. '+c.items.map((x,i)=>(i+1)+'. '+x).join('. '),show:'a'});break;
-    case 'match':S.push({wait:P},{say:c.pairs.map(p=>p[0]+': '+p[1]).join('. '),show:'a'});break;
-    case 'chain':(c.steps||[]).forEach((s,k)=>{S.push({say:'Follow up. '+s.q,show:'s'+k},{wait:P},{say:md2(s.a),show:'sa'+k})});break;
-  }
-  S.push({wait:1200});return S;
-}
-function startListen(ids,title){
-  if(!ttsOK())return;ids=ids.filter(id=>id.startsWith('@gen')||BY_ID[id]);if(!ids.length){alert('Nothing in this deck yet.');return}
-  hush();LQ={title,ids,i:0,seg:0,segs:null,playing:true,timer:null,shown:{},gens:{},marked:{}};show('listen');wakeOn();lqCard();
-}
-function lqCardObj(id){if(id.startsWith('@gen')){if(!LQ.gens[id])LQ.gens[id]=genCard(+id.slice(4));return LQ.gens[id]}return BY_ID[id]}
-function lqCard(){clearTimeout(LQ.timer);if(LQ.i>=LQ.ids.length){lqEnd();return}
-  const c=lqCardObj(LQ.ids[LQ.i]);LQ.c=c;LQ.segs=[{say:'Question '+(LQ.i+1)+'.'},...lqSegments(c)];LQ.seg=0;LQ.shown={q:1};lqPaint();if(LQ.playing)lqRun()}
-function lqRun(){if(!LQ||!LQ.playing)return;const s=LQ.segs[LQ.seg];if(!s){LQ.i++;lqCard();return}
-  if(s.show){LQ.shown[s.show]=1;lqPaint()}
-  const adv=()=>{if(!LQ)return;LQ.seg++;lqRun()};
-  if(s.wait){lqPaint(true);LQ.timer=setTimeout(adv,s.wait)}else say(s.say,adv)}
-function lqToggle(){if(!LQ)return;LQ.playing=!LQ.playing;if(LQ.playing){lqRun()}else{clearTimeout(LQ.timer);hush()}lqPaint()}
-function lqReveal(){if(!LQ)return;clearTimeout(LQ.timer);hush();let k=LQ.segs.findIndex((s,j)=>j>=LQ.seg&&s.show&&s.show!=='q'&&!/^s\d/.test(s.show));if(k<0)k=LQ.seg;LQ.seg=k;lqRun()}
-function lqNext(){if(!LQ)return;clearTimeout(LQ.timer);hush();LQ.i++;lqCard()}
-function lqPrev(){if(!LQ)return;clearTimeout(LQ.timer);hush();LQ.i=Math.max(0,LQ.i-1);lqCard()}
-function lqRepeat(){if(!LQ)return;clearTimeout(LQ.timer);hush();lqCard()}
-function lqMark(g){if(!LQ||!LQ.c)return;const id=LQ.ids[LQ.i];if(!id.startsWith('@gen')&&!LQ.marked[id]){record(id,g?2:0);LQ.marked[id]=g?1:0}lqPaint()}
-function lqEnd(){clearTimeout(LQ&&LQ.timer);hush();wakeOff();const m=LQ?Object.values(LQ.marked):[];
-  if(LQ&&m.length){MEM.hist.push({t:'🎧 '+LQ.title,d:Date.now(),p:m.filter(x=>x).length/m.length,n:m.length});saveMem()}
-  LQ=null;goHome()}
-function lqPaint(waiting){if(!LQ)return;const c=LQ.c;if(!c)return;
-  document.getElementById('lq-title').textContent='🎧 '+LQ.title;
-  document.getElementById('lq-prog').textContent=`Card ${LQ.i+1} of ${LQ.ids.length}`;
-  document.getElementById('lq-bar').style.width=(LQ.i/LQ.ids.length*100)+'%';
-  let h=metaHtml(c).replace(/<button class="flag-btn[\s\S]*?<\/button>/,'')+`<div class="qbig">${esc(c.q)}</div>`;
-  if(c.type==='mcq')h+='<div class="opts">'+c.o.map((o,i)=>`<div class="opt locked ${LQ.shown.a&&i===c.a?'ok':''}"><span class="opt-l">${'ABCDEF'[i]}</span><span class="opt-t">${esc(o)}</span></div>`).join('')+'</div>';
-  if(c.type==='chain')(c.steps||[]).forEach((s,k)=>{if(LQ.shown['s'+k])h+=`<div class="chain-step"><div class="chain-n">Follow-up ${k+1}</div><div class="chain-q">${esc(s.q)}</div>${LQ.shown['sa'+k]?`<div class="model">${md(s.a||'')}</div>`:''}</div>`});
-  if(LQ.shown.a){let a='';
-    if(c.type==='recall')a=md(c.a);else if(c.type==='draw')a=md(c.a)+'<ul>'+(c.checklist||[]).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
-    else if(c.type==='num'||c.type==='gen')a=`<b>${c.ans} ${esc(c.unit||'')}</b><div>${md(c.why||'')}</div>`;
-    else if(c.type==='mcq')a=md(c.why||'');else if(c.type==='order')a='<ol>'+c.items.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol>';
-    else if(c.type==='match')a=c.pairs.map(p=>`<div><b>${esc(p[0])}</b>: ${esc(p[1])}</div>`).join('');
-    if(a)h+=`<div class="model">${a}</div>`}
-  else if(waiting&&c.type!=='chain')h+=`<div class="lq-think">🗣️ Say your answer…</div>`;
-  const id=LQ.ids[LQ.i],mk=LQ.marked[id];
-  document.getElementById('lq-card').innerHTML=h;
-  document.getElementById('lq-play').textContent=LQ.playing?'⏸':'▶';
-  document.getElementById('lq-rate').textContent=ttsSettings().rate.toFixed(2).replace(/0$/,'')+'×';
-  document.getElementById('lq-k').className='gbtn g2'+(mk===1?' sug':'');document.getElementById('lq-m').className='gbtn g0'+(mk===0?' sug':'');
-}
-function listenDeck(k){
-  if(k==='gen'){startListen(shuffle([...Array(GENS.length).keys()]).map(i=>'@gen'+i),'Numericals');return}
-  if(k==='daily'){const p=dailyPlan();startListen([...p.dueTake,...p.newTake].map(c=>c.id),"Today's cards");return}
-  let cs=deckCards(k);if(k!=='weak')cs=shuffle(cs);const d=DECKS.find(x=>x[0]===k);startListen(cs.slice(0,60).map(c=>c.id),d?d[2]:'Weak areas');
-}
-function listenTopic(n){const cs=topicCards(n);const due=cs.filter(c=>isDue(st(c.id))),nw=rankNew(cs.filter(c=>!st(c.id))),rest=shuffle(cs.filter(c=>st(c.id)&&!isDue(st(c.id))));
-  startListen([...due,...nw,...rest].slice(0,60).map(c=>c.id),`${n}. ${TOPIC[n].title}`)}
-function voiceTest(){if(!ttsOK())return;say('Turn at least 30 degrees to a 5 NM parallel offset, then descend below FL290. AUTO FAIL is set at 15,800 ft.')}
-function voiceOptions(){const s=ttsSettings();if(!TTS.voices.length)loadVoices();
-  return TTS.voices.map(v=>`<option value="${esc(v.name)}" ${TTS.voice&&v.name===TTS.voice.name?'selected':''}>${esc(v.name)} (${esc(v.lang)})</option>`).join('')||'<option>Device default</option>'}
-function setVoice(n){const s=ttsSettings();s.voiceName=n;saveMem();loadVoices()}
-
-loadMem();initVoices();renderHome();registerSW();
+loadMem();renderHome();registerSW();
 
 </script>
 </body>
