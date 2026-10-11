@@ -265,6 +265,7 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .sb-bar input::-webkit-search-cancel-button{display:none}
 .sb-ic{font-size:15px;opacity:.7}
 #sb-clear{display:none;border:none;background:var(--surface2);border-radius:50%;width:26px;height:26px;font-size:12px;color:var(--muted);cursor:pointer}
+.sb-seg{margin:0 0 8px}.sb-seg button{flex:1}
 .sb-sum{font-size:12px;color:var(--muted);margin:0 2px 8px}
 .sb-topic{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
 .sb-th{display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer;font-weight:700;font-size:13px;-webkit-tap-highlight-color:transparent}
@@ -873,15 +874,16 @@ function runSearch(q){
   const terms=sbTerms(q);if(!terms.length)return;
   const phrase=q.toLowerCase();
   const ph=sbN(q).trim();
-  let hits=terms.length>1?SIDX.filter(x=>x.lo.includes(ph)):[];let mode='phrase';
-  if(!hits.length){hits=SIDX.filter(x=>terms.every(t=>x.lo.includes(t)));mode='words'}
+  const multi=terms.length>1;const mode=multi?(MEM.settings.sbMode||'phrase'):'words';
+  const hits=mode==='phrase'?SIDX.filter(x=>x.lo.includes(ph)):SIDX.filter(x=>terms.every(t=>x.lo.includes(t)));
   hits.forEach(x=>x.score=(x.lo.includes(phrase)?3:0)+(/^H/.test(x.h)?0:0));
   SB_LAST_MODE=mode;SB_PH=ph;
   const by={};hits.forEach(x=>(by[x.k]=by[x.k]||[]).push(x));
   const order=Object.keys(by).sort((a,b)=>by[b].length-by[a].length);
   const cardHits=CARDS.filter(c=>{const t=sbN(c.q+' '+(c.a||'')+' '+(c.o||[]).join(' ')+' '+(c.why||''));return mode==='phrase'?t.includes(ph):terms.every(w=>t.includes(w))});
-  let h=`<div class="sb-sum">${hits.length} match${hits.length===1?'':'es'} in ${order.length} topic${order.length===1?'':'s'}${cardHits.length?` · ${cardHits.length} cards`:''}${mode==='words'&&terms.length>1?' · all words, not as a phrase':''}</div>`;
-  if(!hits.length&&!cardHits.length)h+='<div class="empty">No matches. Try fewer or different words.</div>';
+  let h=`<div class="sb-sum">${hits.length} match${hits.length===1?'':'es'} in ${order.length} topic${order.length===1?'':'s'}${cardHits.length?` · ${cardHits.length} cards`:''}</div>`;
+  if(multi)h=`<div class="seg sb-seg"><button class="${mode==='phrase'?'on':''}" onclick="sbSetMode('phrase')">Exact phrase</button><button class="${mode==='words'?'on':''}" onclick="sbSetMode('words')">All words</button></div>`+h;
+  if(!hits.length&&!cardHits.length)h+=mode==='phrase'?'<div class="empty">No exact matches for this phrase.<br><button class="sync-btn" style="margin-top:10px" onclick="sbSetMode(\'words\')">Search for all the words instead</button></div>':'<div class="empty">No matches. Try fewer or different words.</div>';
   order.forEach(k=>{const list=by[k].sort((a,b)=>b.score-a.score||a.i-b.i);const name=k==='flags'?'Flags and corrections':`${k}. ${TOPIC[k].title}`;const ic=k==='flags'?'⚠️':TOPIC[k].icon;
     const open=!!SB_OPEN[k];const shown=open?list.slice(0,60):list.slice(0,3);
     h+=`<div class="sb-topic"><div class="sb-th" onclick="openReader('${k}')"><span>${ic}</span><span class="sb-tn">${esc(name)}</span><span class="sb-n">${list.length}</span><span class="sb-ar">📖</span></div>`;
@@ -892,6 +894,7 @@ function runSearch(q){
   SB_LAST={terms:mode==='phrase'?[ph]:terms,cards:cardHits.map(c=>c.id),q};
 }
 let SB_LAST=null;
+function sbSetMode(m){MEM.settings.sbMode=m;saveMem();SB_OPEN={};runSearch(document.getElementById('sb-in').value)}
 function sbCards(){if(SB_LAST&&SB_LAST.cards.length)newSession('Search: '+SB_LAST.q,shuffle(SB_LAST.cards).slice(0,60),'practice')}
 function sbClear(){const i=document.getElementById('sb-in');i.value='';SB_OPEN={};runSearch('');i.blur()}
 function sbGo(k,i){
