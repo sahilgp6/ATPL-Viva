@@ -260,6 +260,21 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px}
 .check-btn{width:100%;margin-top:10px}
 .hidden{display:none!important}
+.sb-bar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;margin:4px 0 12px}
+.sb-bar input{flex:1;border:none;background:transparent;font-size:15px;padding:9px 0;color:var(--text);outline:none;-webkit-appearance:none}
+.sb-bar input::-webkit-search-cancel-button{display:none}
+.sb-ic{font-size:15px;opacity:.7}
+#sb-clear{display:none;border:none;background:var(--surface2);border-radius:50%;width:26px;height:26px;font-size:12px;color:var(--muted);cursor:pointer}
+.sb-sum{font-size:12px;color:var(--muted);margin:0 2px 8px}
+.sb-topic{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;overflow:hidden}
+.sb-th{display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer;font-weight:700;font-size:13px;-webkit-tap-highlight-color:transparent}
+.sb-tn{flex:1}.sb-n{font-size:11px;font-weight:800;color:#fff;background:var(--accent);border-radius:10px;padding:1px 8px}.sb-ar{color:var(--muted)}
+.sb-hit{padding:9px 12px;border-top:1px solid var(--border);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.sb-more{padding:9px 12px;border-top:1px solid var(--border);font-size:12px;font-weight:700;color:var(--accent);cursor:pointer;text-align:center}
+.sb-hit:active{background:var(--surface2)}
+.sb-where{font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
+.sb-tx{font-size:12.5px;line-height:1.45;color:var(--text)}
+.sb-tx mark,.reader-body mark.sbm{background:rgba(139,105,20,.3);color:inherit;border-radius:2px;padding:0 1px}
 </style>
 </head>
 <body>
@@ -277,6 +292,9 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
       </div>
       <button class="resume-banner-cta" onclick="event.stopPropagation();resumeSession()">Continue where you left off →</button>
     </div>
+    <div class="sb-bar"><span class="sb-ic">🔍</span><input id="sb-in" type="search" placeholder="Search everything: e.g. AUTO FAIL, MORA, 7600" autocomplete="off" oninput="onSearch(this.value)"><button id="sb-clear" onclick="sbClear()">✕</button></div>
+    <div id="sb-results" style="display:none"></div>
+    <div id="home-tabs">
     <div class="tabs" style="position:relative;top:0">
       <div class="tab active" data-tab="today" onclick="switchTab('today')">Today</div>
       <div class="tab" data-tab="topics" onclick="switchTab('topics')">Topics</div>
@@ -287,6 +305,7 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
     <div id="tab-topics" class="tab-content"></div>
     <div id="tab-decks" class="tab-content"></div>
     <div id="tab-progress" class="tab-content"></div>
+    </div>
   </div>
 </div>
 
@@ -788,7 +807,7 @@ function showRef(t,id,heading){
   const r=document.getElementById('reader'),b=document.getElementById('reader-body');
   t=String(t);RCUR={t,id};
   document.getElementById('reader-title').textContent=t==='flags'?'Flags and corrections':`${t}. ${TOPIC[t].title}`;
-  b.innerHTML=READER_KEY+(REF[t]||'<div class="empty">Not in the reference.</div>');r.classList.add('open');b.scrollTop=0;
+  b.innerHTML=READER_KEY+'<div id="refc">'+(REF[t]||'<div class="empty">Not in the reference.</div>')+'</div>';r.classList.add('open');b.scrollTop=0;
   document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';
   let el=id?document.getElementById('ref-'+id):null;
   if(!el&&heading){const hs=[...b.querySelectorAll('h4,h5,p.q')];el=hs.find(x=>x.textContent.trim().toLowerCase().startsWith(heading.toLowerCase().slice(0,30)))}
@@ -822,6 +841,71 @@ function resetMem(){if(confirm('Reset ALL progress on this device? Export first 
 
 /* ---------- boot ---------- */
 function registerSW(){if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{})}
+
+/* ---------- search ---------- */
+const SB_SEL='h3,h4,h5,p,li,tr';
+function sbBlocks(root){return [...root.querySelectorAll(SB_SEL)].filter(el=>!(el.tagName==='P'&&el.closest('li'))&&!(el.tagName==='LI'&&el.querySelector('p')))}
+function sbOwnText(el){const c=el.cloneNode(true);if(el.tagName==='LI')c.querySelectorAll('ul,ol').forEach(x=>x.remove());return c.textContent.replace(/\s+/g,' ').trim()}
+let SIDX=null;
+function buildIndex(){
+  SIDX=[];const dp=new DOMParser();
+  const keys=[...TOPICS.map(t=>String(t.n)),'flags'];
+  keys.forEach(k=>{if(!REF[k])return;const doc=dp.parseFromString('<div>'+REF[k]+'</div>','text/html');
+    let h='',item='';sbBlocks(doc.body).forEach((el,i)=>{
+      if(/^H[345]$/.test(el.tagName))h=el.textContent.trim();
+      if(el.classList.contains('q'))item=(el.id||'').replace('ref-','');else if(/^H[345]$/.test(el.tagName))item='';
+      const tx=sbOwnText(el);if(tx)SIDX.push({k,i,h,item,tx,lo:sbN(tx)})});
+  });
+}
+function sbN(t){return t.toLowerCase().replace(/[-\u2010-\u2014]/g,' ').replace(/\s+/g,' ')}
+function sbRe(t){return sbEsc(t).replace(/ /g,'[\\s\\-\u2010-\u2014]+')}
+function sbTerms(q){return sbN(q).replace(/[^\w.%°/+-]+/g,' ').split(' ').filter(w=>w.length>1||/\d/.test(w))}
+function sbEsc(x){return x.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}
+function sbMark(text,terms){terms=(SB_LAST_MODE==='phrase'?[SB_PH]:terms);let h=esc(text);terms.forEach(t=>{h=h.replace(new RegExp('('+sbRe(esc(t))+')','gi'),'<mark>$1</mark>')});return h}
+function sbSnippet(tx,terms){const lo=sbN(tx);let p=lo.indexOf(SB_LAST_MODE==='phrase'?SB_PH:terms[0]);if(p<0)p=0;const a=Math.max(0,p-60),b=Math.min(tx.length,p+140);return (a?'…':'')+tx.slice(a,b)+(b<tx.length?'…':'')}
+let SB_T=null,SB_OPEN={},SB_LAST_MODE='words',SB_PH='';
+function onSearch(v){clearTimeout(SB_T);SB_T=setTimeout(()=>runSearch(v),180)}
+function runSearch(q){
+  const box=document.getElementById('sb-results'),tabs=document.getElementById('home-tabs');
+  q=q.trim();document.getElementById('sb-clear').style.display=q?'block':'none';
+  if(q.length<2){box.innerHTML='';box.style.display='none';tabs.style.display='';return}
+  if(!SIDX)buildIndex();
+  const terms=sbTerms(q);if(!terms.length)return;
+  const phrase=q.toLowerCase();
+  const ph=sbN(q).trim();
+  let hits=terms.length>1?SIDX.filter(x=>x.lo.includes(ph)):[];let mode='phrase';
+  if(!hits.length){hits=SIDX.filter(x=>terms.every(t=>x.lo.includes(t)));mode='words'}
+  hits.forEach(x=>x.score=(x.lo.includes(phrase)?3:0)+(/^H/.test(x.h)?0:0));
+  SB_LAST_MODE=mode;SB_PH=ph;
+  const by={};hits.forEach(x=>(by[x.k]=by[x.k]||[]).push(x));
+  const order=Object.keys(by).sort((a,b)=>by[b].length-by[a].length);
+  const cardHits=CARDS.filter(c=>{const t=sbN(c.q+' '+(c.a||'')+' '+(c.o||[]).join(' ')+' '+(c.why||''));return mode==='phrase'?t.includes(ph):terms.every(w=>t.includes(w))});
+  let h=`<div class="sb-sum">${hits.length} match${hits.length===1?'':'es'} in ${order.length} topic${order.length===1?'':'s'}${cardHits.length?` · ${cardHits.length} cards`:''}${mode==='words'&&terms.length>1?' · all words, not as a phrase':''}</div>`;
+  if(!hits.length&&!cardHits.length)h+='<div class="empty">No matches. Try fewer or different words.</div>';
+  order.forEach(k=>{const list=by[k].sort((a,b)=>b.score-a.score||a.i-b.i);const name=k==='flags'?'Flags and corrections':`${k}. ${TOPIC[k].title}`;const ic=k==='flags'?'⚠️':TOPIC[k].icon;
+    const open=!!SB_OPEN[k];const shown=open?list.slice(0,60):list.slice(0,3);
+    h+=`<div class="sb-topic"><div class="sb-th" onclick="openReader('${k}')"><span>${ic}</span><span class="sb-tn">${esc(name)}</span><span class="sb-n">${list.length}</span><span class="sb-ar">📖</span></div>`;
+    h+=shown.map(x=>`<div class="sb-hit" onclick="sbGo('${k}',${x.i})"><div class="sb-where">${esc(x.h||'')}${x.item?' · '+x.item:''}</div><div class="sb-tx">${sbMark(sbSnippet(x.tx,terms),terms)}</div></div>`).join('')+(!open&&list.length>3?`<div class="sb-more" onclick="SB_OPEN['${k}']=true;runSearch(document.getElementById('sb-in').value)">Show all ${list.length} in this topic ▾</div>`:'')+(open&&list.length>60?`<div class="note" style="padding:0 12px 8px">Showing 60 of ${list.length}; refine the search.</div>`:'');
+    h+='</div>'});
+  if(cardHits.length)h+=`<div class="sb-topic"><div class="sb-th" onclick="sbCards()"><span>🃏</span><span class="sb-tn">Practise the ${cardHits.length} matching cards</span><span class="sb-ar">▶</span></div></div>`;
+  box.innerHTML=h;box.style.display='block';tabs.style.display='none';
+  SB_LAST={terms:mode==='phrase'?[ph]:terms,cards:cardHits.map(c=>c.id),q};
+}
+let SB_LAST=null;
+function sbCards(){if(SB_LAST&&SB_LAST.cards.length)newSession('Search: '+SB_LAST.q,shuffle(SB_LAST.cards).slice(0,60),'practice')}
+function sbClear(){const i=document.getElementById('sb-in');i.value='';SB_OPEN={};runSearch('');i.blur()}
+function sbGo(k,i){
+  openReader(k);
+  const root=document.getElementById('refc');const el=sbBlocks(root)[i];
+  if(SB_LAST)sbHighlight(root,SB_LAST.terms);
+  if(el)setTimeout(()=>{el.scrollIntoView({block:'center'});el.classList.add('hl')},40);
+}
+function sbHighlight(root,terms){
+  const re=new RegExp('('+terms.map(sbRe).join('|')+')','gi');
+  const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];while(w.nextNode())nodes.push(w.currentNode);
+  nodes.forEach(n=>{if(!re.test(n.nodeValue))return;re.lastIndex=0;const span=document.createElement('span');span.innerHTML=esc(n.nodeValue).replace(re,'<mark class="sbm">$1</mark>');n.parentNode.replaceChild(span,n)});
+}
+
 loadMem();renderHome();registerSW();
 
 </script>

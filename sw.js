@@ -4,7 +4,7 @@
 // unavailable. Everything the app needs (HTML/CSS/JS/data) lives in one
 // file, so caching that one file is enough for full offline use.
 
-const CACHE_VERSION = '152500e9d1';
+const CACHE_VERSION = 'a5950690d5';
 const CACHE_NAME = 'atplviva-' + CACHE_VERSION;
 
 // Cache the page itself under both its real URL and the scope root, so a
