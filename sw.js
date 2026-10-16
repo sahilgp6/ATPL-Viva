@@ -4,8 +4,9 @@
 // unavailable. Everything the app needs (HTML/CSS/JS/data) lives in one
 // file, so caching that one file is enough for full offline use.
 
-const CACHE_VERSION = '5134854d45';
+const CACHE_VERSION = '912993d61b';
 const CACHE_NAME = 'atplviva-' + CACHE_VERSION;
+const AUDIO_CACHE = 'atplviva-audio';
 
 // Cache the page itself under both its real URL and the scope root, so a
 // reload works whether it was opened as ".../index.html" or just ".../".
@@ -42,7 +43,7 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+          keys.filter((k) => k !== CACHE_NAME && k !== AUDIO_CACHE).map((k) => caches.delete(k))
         )
       )
       .then(() => self.clients.claim())
@@ -56,6 +57,13 @@ self.addEventListener('fetch', (event) => {
   // Only handle same-origin requests (this app has no external assets, but
   // stay safe if it's ever extended).
   if (new URL(req.url).origin !== self.location.origin) return;
+
+  // Audio episodes: never cache automatically (they are large and use range
+  // requests). Serve from the audio cache only if the user saved it offline.
+  if (new URL(req.url).pathname.includes('/audio/')) {
+    event.respondWith(audioResponse(req));
+    return;
+  }
 
   event.respondWith(
     fetch(req)
@@ -80,3 +88,29 @@ self.addEventListener('fetch', (event) => {
       )
   );
 });
+
+async function audioResponse(req) {
+  const url = req.url.split('#')[0].split('?')[0];
+  const cache = await caches.open(AUDIO_CACHE);
+  const hit = await cache.match(url);
+  if (!hit) return fetch(req);
+  const range = req.headers.get('range');
+  if (!range) return hit;
+  const blob = await hit.blob();
+  const m = /bytes=(\d*)-(\d*)/.exec(range) || [];
+  const size = blob.size;
+  let start = m[1] ? parseInt(m[1], 10) : 0;
+  let end = m[2] ? parseInt(m[2], 10) : size - 1;
+  if (!m[1] && m[2]) { start = size - parseInt(m[2], 10); end = size - 1; }
+  end = Math.min(end, size - 1);
+  return new Response(blob.slice(start, end + 1), {
+    status: 206,
+    statusText: 'Partial Content',
+    headers: {
+      'Content-Type': hit.headers.get('Content-Type') || 'audio/mp4',
+      'Content-Range': `bytes ${start}-${end}/${size}`,
+      'Content-Length': String(end - start + 1),
+      'Accept-Ranges': 'bytes'
+    }
+  });
+}

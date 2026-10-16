@@ -260,6 +260,25 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:13px}
 .check-btn{width:100%;margin-top:10px}
 .hidden{display:none!important}
+.listen-btn{background:var(--accent2);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto;white-space:nowrap}
+.ap{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -4px 18px rgba(28,24,20,.15);padding:10px 16px calc(12px + env(safe-area-inset-bottom));z-index:700;display:none}
+.ap.open{display:block}
+.ap-top{display:flex;align-items:center;gap:8px}
+.ap-title{flex:1;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ap-x{border:none;background:var(--surface2);border-radius:50%;width:28px;height:28px;color:var(--muted);font-size:13px}
+#ap-seek{width:100%;margin:8px 0 2px;accent-color:var(--accent2)}
+.ap-times{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.ap-ctrl{display:flex;gap:8px;justify-content:center;margin-top:6px}
+.pbtn{min-width:58px;padding:11px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);font-size:14px;font-weight:700;color:var(--text);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pbtn.main{background:var(--accent2);color:#fff;border-color:var(--accent2);min-width:74px;font-size:18px}
+.pbtn.sm{font-size:13px}
+body.ap-on .quiz-body,body.ap-on .home-body,body.ap-on .reader-body{padding-bottom:190px}
+body.ap-on .quiz-footer{bottom:150px}
+.au-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:11px 12px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.au-main{flex:1;cursor:pointer}.au-t{font-size:13px;font-weight:700}.au-s{font-size:11px;color:var(--muted)}
+.au-bar{height:3px;background:var(--border);border-radius:2px;margin-top:5px;overflow:hidden}.au-bar i{display:block;height:100%;background:var(--accent2)}
+.au-dl{border:1px solid var(--border);background:var(--surface2);border-radius:8px;padding:7px 9px;font-size:12px;font-weight:700;color:var(--text);white-space:nowrap}
+.au-dl.ok{color:var(--green);border-color:var(--green)}
 .sb-bar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:4px 10px;margin:4px 0 12px}
 .sb-bar input{flex:1;border:none;background:transparent;font-size:15px;padding:9px 0;color:var(--text);outline:none;-webkit-appearance:none}
 .sb-bar input::-webkit-search-cancel-button{display:none}
@@ -337,9 +356,23 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
   <div class="reader-head">
     <button class="back-btn" id="reader-back" onclick="readerBack()">✕ Close</button>
     <span class="quiz-title" id="reader-title"></span>
+    <button class="listen-btn" id="reader-audio" style="display:none" onclick="apPlayTopic(RCUR.t)">🎧 Audio</button>
   </div>
   <div class="reader-body" id="reader-body"></div>
 </div>
+
+<div id="ap" class="ap">
+  <div class="ap-top"><span class="ap-title" id="ap-title"></span><button class="ap-x" onclick="apClose()">✕</button></div>
+  <input type="range" id="ap-seek" min="0" max="1000" value="0" oninput="apSeekPreview(this.value)" onchange="apSeek(this.value)">
+  <div class="ap-times"><span id="ap-cur">0:00</span><span id="ap-dur">0:00</span></div>
+  <div class="ap-ctrl">
+    <button class="pbtn" onclick="apSkip(-15)">↺ 15</button>
+    <button class="pbtn main" id="ap-play" onclick="apToggle()">▶</button>
+    <button class="pbtn" onclick="apSkip(15)">15 ↻</button>
+    <button class="pbtn sm" id="ap-rate" onclick="apRate()">1×</button>
+  </div>
+</div>
+<audio id="ap-el" preload="metadata" playsinline></audio>
 
 <script src="data.js"></script>
 <script src="ref.js"></script>
@@ -528,7 +561,7 @@ function renderTopics(){
        <span class="ch-chip" onclick="startTopic(${n},'recall')">Say it</span>
        <span class="ch-chip" onclick="startTopic(${n},'facts')">MCQ &amp; numbers</span>
        <span class="ch-chip" onclick="startTopic(${n},'all')">All (shuffled)</span>
-       <span class="ch-chip" onclick="openReader(${n})">📖 Read</span></div></div>`});
+       <span class="ch-chip" onclick="openReader(${n})">📖 Read</span>${AUDIO[n]?`<span class="ch-chip" onclick="apPlayTopic(${n})">🎧 Audio ${apFmt(AUDIO[n].d,1)}</span>`:''}</div></div>`});
   });
   h+='</div>';
   document.getElementById('tab-topics').innerHTML=h;
@@ -549,6 +582,7 @@ function renderDecks(){
   let h='<div class="deck-list" style="padding-top:12px">';
   DECKS.forEach(([k,ic,t,s])=>{const n=k==='gen'?'∞':deckCards(k).length;
     h+=`<div class="deck-row" onclick="startDeck('${k}')"><span class="deck-ic">${ic}</span><span><div class="deck-t">${t}</div><div class="deck-s">${s}</div></span><span class="deck-n">${n}</span></div>`});
+  h+=`<div class="deck-row" onclick="switchAudioList()"><span class="deck-ic">🎧</span><span><div class="deck-t">Audio episodes</div><div class="deck-s">NotebookLM deep dives, with offline download</div></span><span class="deck-n">${Object.keys(AUDIO).length}</span></div>`;
   h+=`<div class="deck-row" onclick="openReader('flags')"><span class="deck-ic">📖</span><span><div class="deck-t">Read: flags and corrections</div><div class="deck-s">Part 8 of the reference</div></span></div>`;
   h+='</div>';
   document.getElementById('tab-decks').innerHTML=h;
@@ -810,6 +844,7 @@ function showRef(t,id,heading){
   document.getElementById('reader-title').textContent=t==='flags'?'Flags and corrections':`${t}. ${TOPIC[t].title}`;
   b.innerHTML=READER_KEY+'<div id="refc">'+(REF[t]||'<div class="empty">Not in the reference.</div>')+'</div>';r.classList.add('open');b.scrollTop=0;
   document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';
+  document.getElementById('reader-audio').style.display=AUDIO[t]?'':'none';
   let el=id?document.getElementById('ref-'+id):null;
   if(!el&&heading){const hs=[...b.querySelectorAll('h4,h5,p.q')];el=hs.find(x=>x.textContent.trim().toLowerCase().startsWith(heading.toLowerCase().slice(0,30)))}
   if(el){setTimeout(()=>{el.scrollIntoView({block:'start'});el.classList.add('hl')},30)}
@@ -908,6 +943,56 @@ function sbHighlight(root,terms){
   const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);const nodes=[];while(w.nextNode())nodes.push(w.currentNode);
   nodes.forEach(n=>{if(!re.test(n.nodeValue))return;re.lastIndex=0;const span=document.createElement('span');span.innerHTML=esc(n.nodeValue).replace(re,'<mark class="sbm">$1</mark>');n.parentNode.replaceChild(span,n)});
 }
+
+
+/* ---------- audio episodes ---------- */
+const AP={n:null,el:null,saveT:0,seeking:false};
+const AUDIO_CACHE='atplviva-audio';
+function apFmt(sec,short){sec=Math.max(0,Math.round(sec||0));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;
+  if(short)return h?`${h} h ${m} min`:`${m} min`;return (h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')}
+function apPos(){if(!MEM.audio)MEM.audio={};return MEM.audio}
+function apEl(){if(AP.el)return AP.el;const a=document.getElementById('ap-el');AP.el=a;
+  a.addEventListener('timeupdate',()=>{apPaint();const now=Date.now();if(now-AP.saveT>5000){AP.saveT=now;apSave()}});
+  a.addEventListener('play',()=>{apPaint();if('mediaSession' in navigator)navigator.mediaSession.playbackState='playing'});
+  a.addEventListener('pause',()=>{apSave();apPaint();if('mediaSession' in navigator)navigator.mediaSession.playbackState='paused'});
+  a.addEventListener('loadedmetadata',apPaint);
+  a.addEventListener('ended',()=>{const p=apPos();if(AP.n)p[AP.n]={t:0,done:1};saveMem();apPaint()});
+  a.addEventListener('error',()=>{if(!navigator.onLine)alert('This episode is not saved offline. Connect to the internet, or save it offline from Decks → Audio episodes.')});
+  return a}
+function apSave(){if(!AP.n||!AP.el)return;const p=apPos();p[AP.n]={t:Math.floor(AP.el.currentTime),done:(p[AP.n]||{}).done||0};saveMem()}
+function apPlayTopic(n){n=Number(n);const A=AUDIO[n];if(!A)return;const a=apEl();
+  if(AP.n!==n){apSave();AP.n=n;a.src=A.f;a.playbackRate=MEM.settings.apRate||1;
+    const t=(apPos()[n]||{}).t||0;const go=()=>{if(t>5&&t<A.d-10)a.currentTime=t;a.removeEventListener('loadedmetadata',go)};a.addEventListener('loadedmetadata',go);}
+  document.getElementById('ap-title').textContent='🎧 '+n+'. '+TOPIC[n].title;
+  document.getElementById('ap').classList.add('open');document.body.classList.add('ap-on');
+  if('mediaSession' in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:TOPIC[n].title,artist:'ATPL Viva · Topic '+n,album:'NotebookLM deep dive',artwork:[{src:'icon-512.png',sizes:'512x512',type:'image/png'}]});
+    try{navigator.mediaSession.setActionHandler('play',()=>a.play());navigator.mediaSession.setActionHandler('pause',()=>a.pause());
+      navigator.mediaSession.setActionHandler('seekbackward',()=>apSkip(-15));navigator.mediaSession.setActionHandler('seekforward',()=>apSkip(15));
+      navigator.mediaSession.setActionHandler('seekto',e=>{a.currentTime=e.seekTime})}catch(e){}}
+  a.play().catch(()=>{});apPaint()}
+function apToggle(){const a=apEl();if(!a.src)return;a.paused?a.play():a.pause()}
+function apSkip(s){const a=apEl();if(!a.src)return;a.currentTime=Math.max(0,Math.min((a.duration||1e9)-1,a.currentTime+s));apSave()}
+function apRate(){const R=[1,1.15,1.25,1.5,1.75,2,0.9];const cur=MEM.settings.apRate||1;let k=R.indexOf(cur);const nx=R[(k+1)%R.length];MEM.settings.apRate=nx;saveMem();apEl().playbackRate=nx;apPaint()}
+function apSeekPreview(v){AP.seeking=true;const a=apEl();document.getElementById('ap-cur').textContent=apFmt((a.duration||0)*v/1000)}
+function apSeek(v){const a=apEl();AP.seeking=false;if(a.duration)a.currentTime=a.duration*v/1000;apSave()}
+function apClose(){const a=apEl();a.pause();apSave();document.getElementById('ap').classList.remove('open');document.body.classList.remove('ap-on')}
+function apPaint(){const a=AP.el;if(!a)return;const d=a.duration||(AUDIO[AP.n]||{}).d||0;
+  document.getElementById('ap-play').textContent=a.paused?'▶':'❚❚';
+  document.getElementById('ap-dur').textContent=apFmt(d);
+  if(!AP.seeking){document.getElementById('ap-cur').textContent=apFmt(a.currentTime);document.getElementById('ap-seek').value=d?Math.round(a.currentTime/d*1000):0}
+  document.getElementById('ap-rate').textContent=(MEM.settings.apRate||1)+'×'}
+async function apIsSaved(n){try{const c=await caches.open(AUDIO_CACHE);return !!(await c.match(new URL(AUDIO[n].f,location.href).href))}catch(e){return false}}
+async function apDownload(n,btn){const A=AUDIO[n];const url=new URL(A.f,location.href).href;
+  try{const c=await caches.open(AUDIO_CACHE);if(await c.match(url)){if(confirm('Remove the offline copy of this episode?')){await c.delete(url)}renderAudioList();return}
+    btn.textContent='Saving…';btn.disabled=true;const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw 0;await c.put(url,r);renderAudioList()}
+  catch(e){btn.disabled=false;btn.textContent='⬇ Save offline';alert('Could not save it offline. Check your connection and try again.')}}
+function switchAudioList(){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab==='decks'));document.querySelectorAll('.tab-content').forEach(x=>x.classList.toggle('active',x.id==='tab-decks'));renderAudioList()}
+async function renderAudioList(){
+  const ns=Object.keys(AUDIO).map(Number).sort((a,b)=>a-b);let h=`<div style="padding-top:12px"><button class="back-btn" onclick="renderDecks()">← Decks</button></div><div class="section-label">Audio episodes</div><div class="note">NotebookLM deep dives. The hosts paraphrase, so check exact figures against the cards. Save an episode offline to listen without signal; each is shown with its size.</div>`;
+  for(const n of ns){const A=AUDIO[n],p=apPos()[n]||{},saved=await apIsSaved(n);const pct=p.done?100:Math.round((p.t||0)/A.d*100);
+    h+=`<div class="au-row"><span style="font-size:20px">${TOPIC[n].icon}</span><div class="au-main" onclick="apPlayTopic(${n})"><div class="au-t">${n}. ${esc(TOPIC[n].title)}</div><div class="au-s">${apFmt(A.d,1)} · ${p.done?'finished':pct?pct+'% listened':'not started'}</div><div class="au-bar"><i style="width:${pct}%"></i></div></div><button class="au-dl ${saved?'ok':''}" onclick="apDownload(${n},this)">${saved?'✓ Offline':'⬇ '+A.mb+' MB'}</button></div>`}
+  if(!ns.length)h+='<div class="empty">No episodes yet.</div>';
+  document.getElementById('tab-decks').innerHTML=h}
 
 loadMem();renderHome();registerSW();
 
