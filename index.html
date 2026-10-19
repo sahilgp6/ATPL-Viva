@@ -523,7 +523,8 @@ function renderToday(){
   const p=dailyPlan(), dl=daysLeft();
   const mastered=CARDS.filter(c=>isMastered(st(c.id))).length;
   const sk=streak();
-  let h=`<div class="count-banner"><div class="count-days">${dl}</div><div><div class="count-main">day${dl===1?'':'s'} to the viva</div><div class="count-lbl">${new Date(MEM.settings.viva).toDateString()} · change it in Progress</div></div></div>`;
+  let h=REF.lm?`<button class="go-btn" style="margin-top:12px;background:var(--accent)" onclick="openReader('lm')">⚡ Last-minute revision (your topics list)</button>`:'';
+  h+=`<div class="count-banner"><div class="count-days">${dl}</div><div><div class="count-main">day${dl===1?'':'s'} to the viva</div><div class="count-lbl">${new Date(MEM.settings.viva).toDateString()} · change it in Progress</div></div></div>`;
   if(sk>1) h+=`<div class="streak-banner">🔥 ${sk}-day streak</div>`;
   h+=`<div class="today-box"><div class="today-row">
    <span class="score-item"><span class="stat-val" style="color:var(--red)">${p.due.length}</span><span class="stat-lbl">Due</span></span>
@@ -841,7 +842,7 @@ function openReader(t,id,heading){RSTACK=[];showRef(t,id,heading)}
 function showRef(t,id,heading){
   const r=document.getElementById('reader'),b=document.getElementById('reader-body');
   t=String(t);RCUR={t,id};
-  document.getElementById('reader-title').textContent=t==='flags'?'Flags and corrections':`${t}. ${TOPIC[t].title}`;
+  document.getElementById('reader-title').textContent=t==='flags'?'Flags and corrections':t==='lm'?'⚡ Last-minute revision':`${t}. ${TOPIC[t].title}`;
   b.innerHTML=READER_KEY+'<div id="refc">'+(REF[t]||'<div class="empty">Not in the reference.</div>')+'</div>';r.classList.add('open');b.scrollTop=0;
   document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';
   document.getElementById('reader-audio').style.display=AUDIO[t]?'':'none';
@@ -885,7 +886,7 @@ function sbOwnText(el){const c=el.cloneNode(true);if(el.tagName==='LI')c.querySe
 let SIDX=null;
 function buildIndex(){
   SIDX=[];const dp=new DOMParser();
-  const keys=[...TOPICS.map(t=>String(t.n)),'flags'];
+  const keys=['lm',...TOPICS.map(t=>String(t.n)),'flags'];
   keys.forEach(k=>{if(!REF[k])return;const doc=dp.parseFromString('<div>'+REF[k]+'</div>','text/html');
     let h='',item='';sbBlocks(doc.body).forEach((el,i)=>{
       if(/^H[345]$/.test(el.tagName))h=el.textContent.trim();
@@ -919,7 +920,7 @@ function runSearch(q){
   let h=`<div class="sb-sum">${hits.length} match${hits.length===1?'':'es'} in ${order.length} topic${order.length===1?'':'s'}${cardHits.length?` · ${cardHits.length} cards`:''}</div>`;
   if(multi)h=`<div class="seg sb-seg"><button class="${mode==='phrase'?'on':''}" onclick="sbSetMode('phrase')">Exact phrase</button><button class="${mode==='words'?'on':''}" onclick="sbSetMode('words')">All words</button></div>`+h;
   if(!hits.length&&!cardHits.length)h+=mode==='phrase'?'<div class="empty">No exact matches for this phrase.<br><button class="sync-btn" style="margin-top:10px" onclick="sbSetMode(\'words\')">Search for all the words instead</button></div>':'<div class="empty">No matches. Try fewer or different words.</div>';
-  order.forEach(k=>{const list=by[k].sort((a,b)=>b.score-a.score||a.i-b.i);const name=k==='flags'?'Flags and corrections':`${k}. ${TOPIC[k].title}`;const ic=k==='flags'?'⚠️':TOPIC[k].icon;
+  order.forEach(k=>{const list=by[k].sort((a,b)=>b.score-a.score||a.i-b.i);const name=k==='flags'?'Flags and corrections':k==='lm'?'Last-minute revision':`${k}. ${TOPIC[k].title}`;const ic=k==='flags'?'⚠️':k==='lm'?'⚡':TOPIC[k].icon;
     const open=!!SB_OPEN[k];const shown=open?list.slice(0,60):list.slice(0,3);
     h+=`<div class="sb-topic"><div class="sb-th" onclick="openReader('${k}')"><span>${ic}</span><span class="sb-tn">${esc(name)}</span><span class="sb-n">${list.length}</span><span class="sb-ar">📖</span></div>`;
     h+=shown.map(x=>`<div class="sb-hit" onclick="sbGo('${k}',${x.i})"><div class="sb-where">${esc(x.h||'')}${x.item?' · '+x.item:''}</div><div class="sb-tx">${sbMark(sbSnippet(x.tx,terms),terms)}</div></div>`).join('')+(!open&&list.length>3?`<div class="sb-more" onclick="SB_OPEN['${k}']=true;runSearch(document.getElementById('sb-in').value)">Show all ${list.length} in this topic ▾</div>`:'')+(open&&list.length>60?`<div class="note" style="padding:0 12px 8px">Showing 60 of ${list.length}; refine the search.</div>`:'');
