@@ -295,6 +295,21 @@ body.ap-on .quiz-footer{bottom:150px}
 .sb-where{font-size:10.5px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px}
 .sb-tx{font-size:12.5px;line-height:1.45;color:var(--text)}
 .sb-tx mark,.reader-body mark.sbm{background:rgba(139,105,20,.3);color:inherit;border-radius:2px;padding:0 1px}
+.reader-body mark.ann{background:rgba(196,140,40,.32);color:inherit;border-bottom:2px solid var(--accent2);border-radius:2px;padding:0 1px;cursor:pointer}
+.reader-body .ann-blk{background:rgba(196,140,40,.16);border-radius:4px;cursor:pointer}
+.reader-body .ann-ic{font-size:12px;margin-left:3px;cursor:pointer}
+.reader-body.ann-mode p,.reader-body.ann-mode li,.reader-body.ann-mode tr,.reader-body.ann-mode h4,.reader-body.ann-mode h5{outline:1px dashed rgba(139,105,20,.35);outline-offset:1px;cursor:copy}
+.ann-btn{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;margin-left:auto;white-space:nowrap}
+.ann-btn.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+.ann-fab{position:fixed;right:16px;bottom:calc(22px + env(safe-area-inset-bottom));z-index:650;background:var(--accent2);color:#fff;border:none;border-radius:22px;padding:12px 18px;font-size:14px;font-weight:800;box-shadow:0 4px 16px rgba(28,24,20,.3);display:none}
+.ann-fab.on{display:block}
+body.ap-on .ann-fab{bottom:175px}
+.ann-q{border-left:3px solid var(--accent2);background:rgba(196,140,40,.12);padding:7px 10px;border-radius:0 6px 6px 0;font-size:13px;line-height:1.5;margin:8px 0;max-height:160px;overflow-y:auto}
+.ann-q.sm{font-size:12.5px;max-height:none}
+.ann-ta{font-family:inherit;font-size:14px;height:110px}
+.ann-note{font-size:13px;line-height:1.5;padding:4px 2px}.ann-note.big{font-size:15px;padding:8px 2px}
+.ann-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px}
+.ann-acts{display:flex;gap:8px;margin-top:6px}
 </style>
 </head>
 <body>
@@ -356,9 +371,10 @@ body.ap-on .quiz-footer{bottom:150px}
   <div class="reader-head">
     <button class="back-btn" id="reader-back" onclick="readerBack()">✕ Close</button>
     <span class="quiz-title" id="reader-title"></span>
-    <button class="listen-btn" id="reader-audio" style="display:none" onclick="apPlayTopic(RCUR.t)">🎧 Audio</button>
+    <button class="ann-btn" id="reader-ann" onclick="annToggleMode()">✍️ Note</button><button class="listen-btn" id="reader-audio" style="display:none;margin-left:6px" onclick="apPlayTopic(RCUR.t)">🎧 Audio</button>
   </div>
   <div class="reader-body" id="reader-body"></div>
+  <button class="ann-fab" id="ann-fab" onpointerdown="event.preventDefault();annFromSel()">✍️ Annotate</button>
 </div>
 
 <div id="ap" class="ap">
@@ -583,6 +599,7 @@ function renderDecks(){
   let h='<div class="deck-list" style="padding-top:12px">';
   DECKS.forEach(([k,ic,t,s])=>{const n=k==='gen'?'∞':deckCards(k).length;
     h+=`<div class="deck-row" onclick="startDeck('${k}')"><span class="deck-ic">${ic}</span><span><div class="deck-t">${t}</div><div class="deck-s">${s}</div></span><span class="deck-n">${n}</span></div>`});
+  h+=`<div class="deck-row" onclick="renderAnnList()"><span class="deck-ic">📝</span><span><div class="deck-t">My annotations</div><div class="deck-s">Your notes on the Read sections, each linked to its text</div></span><span class="deck-n">${annCount()}</span></div>`;
   h+=`<div class="deck-row" onclick="switchAudioList()"><span class="deck-ic">🎧</span><span><div class="deck-t">Audio episodes</div><div class="deck-s">NotebookLM deep dives, with offline download</div></span><span class="deck-n">${Object.keys(AUDIO).length}</span></div>`;
   h+=`<div class="deck-row" onclick="openReader('flags')"><span class="deck-ic">📖</span><span><div class="deck-t">Read: flags and corrections</div><div class="deck-s">Part 8 of the reference</div></span></div>`;
   h+='</div>';
@@ -843,7 +860,7 @@ function showRef(t,id,heading){
   const r=document.getElementById('reader'),b=document.getElementById('reader-body');
   t=String(t);RCUR={t,id};
   document.getElementById('reader-title').textContent=t==='flags'?'Flags and corrections':t==='lm'?'⚡ Last-minute revision':`${t}. ${TOPIC[t].title}`;
-  b.innerHTML=READER_KEY+'<div id="refc">'+(REF[t]||'<div class="empty">Not in the reference.</div>')+'</div>';r.classList.add('open');b.scrollTop=0;
+  b.innerHTML=READER_KEY+'<div id="refc">'+(REF[t]||'<div class="empty">Not in the reference.</div>')+'</div>';r.classList.add('open');b.scrollTop=0;annApply(t);
   document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';
   document.getElementById('reader-audio').style.display=AUDIO[t]?'':'none';
   let el=id?document.getElementById('ref-'+id):null;
@@ -855,7 +872,7 @@ function readerJump(t,id){const b=document.getElementById('reader-body');RSTACK.
   showRef(t,id)}
 function readerBack(){const p=RSTACK.pop();if(!p){closeReader();return}const b=document.getElementById('reader-body');
   if(p.t!==RCUR.t)showRef(p.t);RCUR.t=p.t;document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';setTimeout(()=>{b.scrollTop=p.top},40)}
-function closeReader(){document.getElementById('reader').classList.remove('open');RSTACK=[]}
+function closeReader(){document.getElementById('reader').classList.remove('open');RSTACK=[];if(ANN_MODE)annToggleMode();document.getElementById('ann-fab').classList.remove('on')}
 document.addEventListener('click',e=>{const a=e.target.closest('a.xref');if(!a)return;e.preventDefault();
   if(a.dataset.x)readerJump(XREF[a.dataset.x],a.dataset.x);else if(a.dataset.t)readerJump(a.dataset.t)});
 
@@ -994,6 +1011,96 @@ async function renderAudioList(){
     h+=`<div class="au-row"><span style="font-size:20px">${TOPIC[n].icon}</span><div class="au-main" onclick="apPlayTopic(${n})"><div class="au-t">${n}. ${esc(TOPIC[n].title)}</div><div class="au-s">${apFmt(A.d,1)} · ${p.done?'finished':pct?pct+'% listened':'not started'}</div><div class="au-bar"><i style="width:${pct}%"></i></div></div><button class="au-dl ${saved?'ok':''}" onclick="apDownload(${n},this)">${saved?'✓ Offline':'⬇ '+A.mb+' MB'}</button></div>`}
   if(!ns.length)h+='<div class="empty">No episodes yet.</div>';
   document.getElementById('tab-decks').innerHTML=h}
+
+/* ---------- annotations ---------- */
+let ANN_MODE=false, ANN_SEL=null, ANN_R=null, ANN_HIDE=null;
+function annStore(){if(!MEM.ann)MEM.ann={};return MEM.ann}
+function annWS(s){return String(s||'').replace(/\s+/g,' ').trim()}
+function annTitle(t){t=String(t);return t==='flags'?'Flags and corrections':t==='lm'?'Last-minute revision':t+'. '+((TOPIC[t]||{}).title||'')}
+function annBlocks(){const r=document.getElementById('refc');return r?sbBlocks(r):[]}
+function annBlockOf(node){const bs=annBlocks();let el=node&&(node.nodeType===1?node:node.parentNode);while(el&&el.id!=='refc'&&el!==document.body){const k=bs.indexOf(el);if(k>=0)return {el,i:k};el=el.parentNode}return null}
+function annHeading(el){const r=document.getElementById('refc');let h='';for(const x of r.querySelectorAll('h3,h4,h5,p.q')){if(x===el||(x.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING))h=annWS(x.textContent);else break}return h.slice(0,140)}
+function annOrder(){const ord=['lm',...TOPICS.map(t=>String(t.n)),'flags'];return Object.entries(annStore()).sort((a,b)=>(ord.indexOf(a[1].t)-ord.indexOf(b[1].t))||(a[1].i-b[1].i))}
+function annCount(){return Object.keys(annStore()).length}
+
+// remember the latest selection inside the reader (iOS can clear it when a button is tapped)
+document.addEventListener('selectionchange',()=>{const fab=document.getElementById('ann-fab');if(!fab)return;
+  const s=window.getSelection(),r=document.getElementById('reader');
+  const off=()=>{clearTimeout(ANN_HIDE);ANN_HIDE=setTimeout(()=>fab.classList.remove('on'),600)};
+  if(!r.classList.contains('open')||!s||s.isCollapsed||!s.rangeCount)return off();
+  const b=annBlockOf(s.getRangeAt(0).startContainer),txt=annWS(s.toString());
+  if(!b||!txt)return off();
+  clearTimeout(ANN_HIDE);ANN_SEL={t:RCUR.t,i:b.i,el:b.el,q:txt.slice(0,400)};fab.classList.add('on')});
+function annFromSel(){const s=ANN_SEL;if(!s||s.t!==RCUR.t)return;document.getElementById('ann-fab').classList.remove('on');
+  try{window.getSelection().removeAllRanges()}catch(e){}
+  // clip a multi-block selection to the part inside the first block
+  const own=annWS(sbOwnText(s.el));let q=s.q;if(!own.includes(q)){const k=Math.min(q.length,own.length);for(let n=k;n>8;n--){if(own.endsWith(q.slice(0,n))){q=q.slice(0,n);break}if(own.includes(q.slice(0,n))){q=q.slice(0,n);break}}}
+  annOpen({t:s.t,i:s.i,q,bt:own.slice(0,60),h:annHeading(s.el),note:''},null)}
+function annToggleMode(){ANN_MODE=!ANN_MODE;document.getElementById('reader-body').classList.toggle('ann-mode',ANN_MODE);
+  const b=document.getElementById('reader-ann');b.classList.toggle('on',ANN_MODE);b.textContent=ANN_MODE?'✍️ Tap a line':'✍️ Note'}
+document.addEventListener('click',e=>{const body=document.getElementById('reader-body');if(!body||!body.contains(e.target))return;
+  if(e.target.closest('a'))return;
+  const m=e.target.closest('[data-a]');if(m&&annStore()[m.dataset.a]){e.preventDefault();annOpen(annStore()[m.dataset.a],m.dataset.a);return}
+  if(!ANN_MODE)return;const b=annBlockOf(e.target);if(!b)return;
+  const own=annWS(sbOwnText(b.el));annOpen({t:RCUR.t,i:b.i,q:own.slice(0,400),bt:own.slice(0,60),h:annHeading(b.el),note:''},null)});
+function annOpen(a,id){
+  const d=ioModal(id?'Your note':'Add a note',`<span style="font-size:11px;color:var(--muted)">${esc(annTitle(a.t))}${a.h&&a.h!==a.q?' · '+esc(a.h.slice(0,80)):''}</span>`,
+    `<div class="ann-q">${esc(a.q)}</div><textarea class="io-ta ann-ta" id="ann-ta" placeholder="Your note, a mnemonic, or a question to test yourself. Leave it blank to just highlight.">${esc(a.note||'')}</textarea>`,
+    `${id?'<button class="btn io-cancel" id="ann-del">Delete</button>':''}<button class="btn io-cancel" id="ann-x">Cancel</button><button class="btn io-confirm" id="ann-ok">Save</button>`);
+  const ta=d.querySelector('#ann-ta');setTimeout(()=>ta.focus(),50);
+  d.querySelector('#ann-x').onclick=()=>d.remove();
+  d.querySelector('#ann-ok').onclick=()=>{const st=annStore();const k=id||('a'+Date.now().toString(36));
+    st[k]=Object.assign({},a,{note:ta.value.trim(),at:(st[k]||{}).at||Date.now(),ed:Date.now()});saveMem();d.remove();annRefresh(k)};
+  if(id)d.querySelector('#ann-del').onclick=()=>{if(!confirm('Delete this note?'))return;delete annStore()[id];saveMem();d.remove();annRefresh(null)};
+}
+function annRefresh(k){const r=document.getElementById('reader');
+  if(r.classList.contains('open')){const b=document.getElementById('reader-body'),top=b.scrollTop;showRef(RCUR.t);b.scrollTop=top;
+    if(k){const m=document.querySelector(`#refc [data-a="${k}"]`);if(m){const el=m.closest(SB_SEL)||m;el.classList.add('hl')}}}
+  if(document.getElementById('ann-list'))renderAnnList();else if(ANN_R&&document.querySelector('#tab-decks .qcard'))paintAnnReview();}
+function annResolve(a,bs){const tx=e=>annWS(sbOwnText(e));let el=bs[a.i];
+  if(el&&a.bt&&tx(el).startsWith(a.bt))return el;
+  const q=a.q.slice(0,80);el=bs.find(e=>tx(e).includes(q));if(el)return el;
+  if(a.bt){el=bs.find(e=>tx(e).startsWith(a.bt));if(el)return el}
+  return null}
+function annWrap(el,q,id){const nodes=[];const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);
+  while(w.nextNode()){const n=w.currentNode;if(n.parentElement.closest(SB_SEL)===el)nodes.push(n)}
+  let s='',map=[],sp=true;
+  nodes.forEach(n=>{const v=n.nodeValue;for(let k=0;k<v.length;k++){if(/\s/.test(v[k])){if(sp)continue;s+=' ';map.push([n,k]);sp=true}else{s+=v[k];map.push([n,k]);sp=false}}});
+  const p=s.indexOf(q);if(p<0||!q)return null;
+  const segs=new Map();for(let k=p;k<p+q.length;k++){const [n,o]=map[k];const g=segs.get(n);if(g)g[1]=o;else segs.set(n,[o,o])}
+  let last=null;segs.forEach(([a,b],n)=>{try{const r=document.createRange();r.setStart(n,a);r.setEnd(n,b+1);const m=document.createElement('mark');m.className='ann';m.dataset.a=id;r.surroundContents(m);last=m}catch(e){}});
+  return last}
+function annApply(t){const root=document.getElementById('refc');if(!root)return;const bs=sbBlocks(root);
+  annOrder().forEach(([id,a])=>{if(a.t!==String(t))return;const el=annResolve(a,bs);if(!el)return;
+    let last=annWrap(el,a.q,id);
+    if(!last){el.classList.add('ann-blk');el.dataset.a=id;last=null}
+    if(a.note){const ic=document.createElement('span');ic.className='ann-ic';ic.dataset.a=id;ic.textContent='📝';
+      if(last)last.after(ic);else el.appendChild(ic)}});
+}
+function annGo(id){const a=annStore()[id];if(!a)return;openReader(a.t);
+  const m=document.querySelector(`#refc [data-a="${id}"]`);
+  if(m)setTimeout(()=>{m.scrollIntoView({block:'center'});const el=m.closest(SB_SEL)||m;el.classList.remove('hl');void el.offsetWidth;el.classList.add('hl')},40);
+  else alert('That passage has changed in the reference, so the note could not be placed. The topic is open; the note is still in your deck.')}
+function annRowHtml(id,a){return `<div class="ann-row"><div class="sb-where">${esc(annTitle(a.t))}${a.h&&a.h!==a.q?' · '+esc(a.h.slice(0,70)):''}</div>
+  <div class="ann-q sm">${esc(a.q.length>220?a.q.slice(0,220)+'…':a.q)}</div>${a.note?`<div class="ann-note">${esc(a.note).replace(/\n/g,'<br>')}</div>`:''}
+  <div class="ann-acts"><button class="au-dl" onclick="annGo('${id}')">Open in text ↗</button><button class="au-dl" onclick="annOpen(annStore()['${id}'],'${id}')">Edit</button></div></div>`}
+function renderAnnList(){const list=annOrder();
+  let h=`<div id="ann-list" style="padding-top:12px"><button class="back-btn" onclick="renderDecks()">← Decks</button></div><div class="section-label">My annotations</div>`;
+  if(!list.length){h+=`<div class="empty">No notes yet.<br><br>Open any Read section, then either select some text and tap <b>✍️ Annotate</b>, or tap <b>✍️ Note</b> in the header and tap a line.</div>`}
+  else{h+=`<div class="seg"><button class="on" onclick="annReview(false)">▶ Review in order</button><button onclick="annReview(true)">🔀 Shuffle</button></div>`;
+    let cur=null;list.forEach(([id,a])=>{if(a.t!==cur){cur=a.t;h+=`<div class="section-label" style="margin-top:14px">${esc(annTitle(a.t))}</div>`}h+=annRowHtml(id,a)})}
+  document.getElementById('tab-decks').innerHTML=h}
+function annReview(sh){const ids=annOrder().map(x=>x[0]);ANN_R={ids:sh?shuffle(ids):ids,i:0,shown:false};paintAnnReview()}
+function paintAnnReview(){const R=ANN_R,el=document.getElementById('tab-decks');
+  if(R.i>=R.ids.length){el.innerHTML=`<div style="padding-top:12px"><button class="back-btn" onclick="renderAnnList()">← Annotations</button></div><div class="empty">Done: ${R.ids.length} note${R.ids.length===1?'':'s'} reviewed.<br><br><button class="btn btn-primary" onclick="annReview(true)">Go again (shuffled)</button></div>`;return}
+  const id=R.ids[R.i],a=annStore()[id];if(!a){R.i++;return paintAnnReview()}
+  el.innerHTML=`<div style="padding-top:12px;display:flex;align-items:center"><button class="back-btn" onclick="renderAnnList()">← Annotations</button><span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:700">${R.i+1} / ${R.ids.length}</span></div>
+  <div class="qcard" style="margin-top:12px"><div class="sb-where">${esc(annTitle(a.t))}${a.h&&a.h!==a.q?' · '+esc(a.h.slice(0,80)):''}</div>
+  <div class="ann-q">${esc(a.q)}</div>
+  ${R.shown?(a.note?`<div class="ann-note big">${esc(a.note).replace(/\n/g,'<br>')}</div>`:'<div class="note">No note, highlight only.</div>'):`<button class="btn btn-secondary check-btn" onclick="ANN_R.shown=true;paintAnnReview()">${a.note?'Show my note':'Highlight only'}</button>`}
+  <div class="ann-acts" style="margin-top:12px"><button class="au-dl" onclick="annGo('${id}')">Open in text ↗</button><button class="au-dl" onclick="annOpen(annStore()['${id}'],'${id}')">Edit</button></div></div>
+  <div style="display:flex;gap:8px;margin-top:12px">${R.i?'<button class="btn btn-secondary" style="flex:1" onclick="ANN_R.i--;ANN_R.shown=false;paintAnnReview()">← Prev</button>':''}<button class="btn btn-primary" style="flex:2" onclick="ANN_R.i++;ANN_R.shown=false;paintAnnReview()">Next →</button></div>`;
+  window.scrollTo(0,0)}
 
 loadMem();renderHome();registerSW();
 
