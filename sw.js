@@ -4,7 +4,7 @@
 // unavailable. Everything the app needs (HTML/CSS/JS/data) lives in one
 // file, so caching that one file is enough for full offline use.
 
-const CACHE_VERSION = 'c586677e2a';
+const CACHE_VERSION = '338326d133';
 const CACHE_NAME = 'atplviva-' + CACHE_VERSION;
 const AUDIO_CACHE = 'atplviva-audio';
 
