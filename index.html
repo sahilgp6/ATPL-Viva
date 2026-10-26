@@ -470,6 +470,7 @@ function deckCards(key){
     case 'chains': return CARDS.filter(c=>c.type==='chain');
     case 'draw': return CARDS.filter(c=>c.type==='draw');
     case 'qrh': return CARDS.filter(c=>c.deck==='qrh');
+    case 'viva26': return CARDS.filter(c=>c.deck==='viva26');
     case 'weak': return weakCards();
     case 'flagged': return CARDS.filter(c=>MEM.flags[c.id]);
   }
@@ -540,6 +541,7 @@ function renderToday(){
   const mastered=CARDS.filter(c=>isMastered(st(c.id))).length;
   const sk=streak();
   let h=REF.lm?`<button class="go-btn" style="margin-top:12px;background:var(--accent)" onclick="openReader('lm')">⚡ Last-minute revision (your topics list)</button>`:'';
+  if(REF.v26)h+=`<div style="display:flex;gap:8px;margin-top:8px"><button class="go-btn" style="margin:0;flex:1;background:var(--accent)" onclick="openReader('v26')">🗓️ Read: Viva 26 Oct</button><button class="go-btn" style="margin:0;flex:1" onclick="startDeck('viva26')">Drill the ${deckCards('viva26').length} cards</button></div>`;
   h+=`<div class="count-banner"><div class="count-days">${dl}</div><div><div class="count-main">day${dl===1?'':'s'} to the viva</div><div class="count-lbl">${new Date(MEM.settings.viva).toDateString()} · change it in Progress</div></div></div>`;
   if(sk>1) h+=`<div class="streak-banner">🔥 ${sk}-day streak</div>`;
   h+=`<div class="today-box"><div class="today-row">
@@ -593,6 +595,7 @@ const DECKS=[
  ['chains','🔗','Examiner chains','Opener and the follow-ups'],
  ['draw','✏️','Drawings','Sketch it, then tick the checklist'],
  ['qrh','🧯','QRH memory items','737 MAX immediate action items'],
+ ['viva26','🗓️','Viva 26 Oct: asked questions','Delhi and Chennai boards, with full answers'],
  ['flagged','🚩','Flagged','Cards you flagged'],
 ];
 function renderDecks(){
@@ -601,6 +604,7 @@ function renderDecks(){
     h+=`<div class="deck-row" onclick="startDeck('${k}')"><span class="deck-ic">${ic}</span><span><div class="deck-t">${t}</div><div class="deck-s">${s}</div></span><span class="deck-n">${n}</span></div>`});
   h+=`<div class="deck-row" onclick="renderAnnList()"><span class="deck-ic">📝</span><span><div class="deck-t">My annotations</div><div class="deck-s">Your notes on the Read sections, each linked to its text</div></span><span class="deck-n">${annCount()}</span></div>`;
   h+=`<div class="deck-row" onclick="switchAudioList()"><span class="deck-ic">🎧</span><span><div class="deck-t">Audio episodes</div><div class="deck-s">NotebookLM deep dives, with offline download</div></span><span class="deck-n">${Object.keys(AUDIO).length}</span></div>`;
+  if(REF.v26)h+=`<div class="deck-row" onclick="openReader('v26')"><span class="deck-ic">📖</span><span><div class="deck-t">Read: Viva 26 Oct questions</div><div class="deck-s">Every asked question answered in detail</div></span></div>`;
   h+=`<div class="deck-row" onclick="openReader('flags')"><span class="deck-ic">📖</span><span><div class="deck-t">Read: flags and corrections</div><div class="deck-s">Part 8 of the reference</div></span></div>`;
   h+='</div>';
   document.getElementById('tab-decks').innerHTML=h;
@@ -680,9 +684,11 @@ function runTimer(sec,onEnd){stopTimer();const end=Date.now()+sec*1000;const el=
 /* ---------- card rendering ---------- */
 let CUR=null; // per-card working state
 function metaHtml(c){const t=TOPIC[c.topic];
-  return `<div class="qmeta"><span class="tag tag-type">${TYPE_LBL[c.type]||c.type}</span><span class="tag tag-id">T${c.topic}${c.ref&&/^(NR|S|E|OB)\d+/.test(c.ref)?' · '+esc(c.ref):''}</span>${c.asked?'<span class="tag tag-asked">ASKED</span>':''}${c.trap?'<span class="tag tag-trap">TRAP</span>':''}
+  return `<div class="qmeta"><span class="tag tag-type">${TYPE_LBL[c.type]||c.type}</span><span class="tag tag-id">T${c.topic}${c.ref&&/^(NR|S|E|OB)\d+/.test(c.ref)?' · '+esc(c.ref):''}</span>${c.deck==='viva26'?'<span class="tag tag-asked">26 OCT</span>':c.asked?'<span class="tag tag-asked">ASKED</span>':''}${c.trap?'<span class="tag tag-trap">TRAP</span>':''}
   <button class="flag-btn ${MEM.flags[c.id]?'flagged':''}" style="margin-left:auto" onclick="toggleFlag('${c.id}',this)">🚩</button></div>`}
+function XNAME(k){return k==='v26'?'Viva 26 Oct':k==='lm'?'Last-minute revision':k}
 function srcHtml(c){const r=c.ref||'';const id=(r.match(/^(NR|S|E|OB)\d+/)||[])[0];
+  if(c.rd)return `<div class="src">📚 ${esc(c.src||'')}</div><span class="reflink" onclick="openReader('${c.rd}','','${esc(r).replace(/'/g,'')}')">📖 Full answer: ${XNAME(c.rd)}${r?', '+esc(r):''}</span>`;
   return `<div class="src">📚 ${esc(c.src||'')}</div>${c.topic?`<span class="reflink" onclick="openReader(${c.topic},'${id||''}','${esc(id?'':r).replace(/'/g,'')}')">📖 Full answer: Topic ${c.topic}${id?', '+id:r?', '+esc(r):''}</span>`:''}`}
 function renderCard(){
   stopTimer();
@@ -859,7 +865,7 @@ function openReader(t,id,heading){RSTACK=[];showRef(t,id,heading)}
 function showRef(t,id,heading){
   const r=document.getElementById('reader'),b=document.getElementById('reader-body');
   t=String(t);RCUR={t,id};
-  document.getElementById('reader-title').textContent=t==='flags'?'Flags and corrections':t==='lm'?'⚡ Last-minute revision':`${t}. ${TOPIC[t].title}`;
+  document.getElementById('reader-title').textContent=t==='flags'?'Flags and corrections':t==='lm'?'⚡ Last-minute revision':t==='v26'?'🗓️ Viva 26 Oct questions':`${t}. ${TOPIC[t].title}`;
   b.innerHTML=READER_KEY+'<div id="refc">'+(REF[t]||'<div class="empty">Not in the reference.</div>')+'</div>';r.classList.add('open');b.scrollTop=0;annApply(t);
   document.getElementById('reader-back').textContent=RSTACK.length?'← Back':'✕ Close';
   document.getElementById('reader-audio').style.display=AUDIO[t]?'':'none';
@@ -903,7 +909,7 @@ function sbOwnText(el){const c=el.cloneNode(true);if(el.tagName==='LI')c.querySe
 let SIDX=null;
 function buildIndex(){
   SIDX=[];const dp=new DOMParser();
-  const keys=['lm',...TOPICS.map(t=>String(t.n)),'flags'];
+  const keys=['lm','v26',...TOPICS.map(t=>String(t.n)),'flags'];
   keys.forEach(k=>{if(!REF[k])return;const doc=dp.parseFromString('<div>'+REF[k]+'</div>','text/html');
     let h='',item='';sbBlocks(doc.body).forEach((el,i)=>{
       if(/^H[345]$/.test(el.tagName))h=el.textContent.trim();
@@ -937,7 +943,7 @@ function runSearch(q){
   let h=`<div class="sb-sum">${hits.length} match${hits.length===1?'':'es'} in ${order.length} topic${order.length===1?'':'s'}${cardHits.length?` · ${cardHits.length} cards`:''}</div>`;
   if(multi)h=`<div class="seg sb-seg"><button class="${mode==='phrase'?'on':''}" onclick="sbSetMode('phrase')">Exact phrase</button><button class="${mode==='words'?'on':''}" onclick="sbSetMode('words')">All words</button></div>`+h;
   if(!hits.length&&!cardHits.length)h+=mode==='phrase'?'<div class="empty">No exact matches for this phrase.<br><button class="sync-btn" style="margin-top:10px" onclick="sbSetMode(\'words\')">Search for all the words instead</button></div>':'<div class="empty">No matches. Try fewer or different words.</div>';
-  order.forEach(k=>{const list=by[k].sort((a,b)=>b.score-a.score||a.i-b.i);const name=k==='flags'?'Flags and corrections':k==='lm'?'Last-minute revision':`${k}. ${TOPIC[k].title}`;const ic=k==='flags'?'⚠️':k==='lm'?'⚡':TOPIC[k].icon;
+  order.forEach(k=>{const list=by[k].sort((a,b)=>b.score-a.score||a.i-b.i);const name=k==='flags'?'Flags and corrections':k==='lm'?'Last-minute revision':k==='v26'?'Viva 26 Oct questions':`${k}. ${TOPIC[k].title}`;const ic=k==='flags'?'⚠️':k==='lm'?'⚡':k==='v26'?'🗓️':TOPIC[k].icon;
     const open=!!SB_OPEN[k];const shown=open?list.slice(0,60):list.slice(0,3);
     h+=`<div class="sb-topic"><div class="sb-th" onclick="openReader('${k}')"><span>${ic}</span><span class="sb-tn">${esc(name)}</span><span class="sb-n">${list.length}</span><span class="sb-ar">📖</span></div>`;
     h+=shown.map(x=>`<div class="sb-hit" onclick="sbGo('${k}',${x.i})"><div class="sb-where">${esc(x.h||'')}${x.item?' · '+x.item:''}</div><div class="sb-tx">${sbMark(sbSnippet(x.tx,terms),terms)}</div></div>`).join('')+(!open&&list.length>3?`<div class="sb-more" onclick="SB_OPEN['${k}']=true;runSearch(document.getElementById('sb-in').value)">Show all ${list.length} in this topic ▾</div>`:'')+(open&&list.length>60?`<div class="note" style="padding:0 12px 8px">Showing 60 of ${list.length}; refine the search.</div>`:'');
@@ -1016,11 +1022,11 @@ async function renderAudioList(){
 let ANN_MODE=false, ANN_SEL=null, ANN_R=null, ANN_HIDE=null;
 function annStore(){if(!MEM.ann)MEM.ann={};return MEM.ann}
 function annWS(s){return String(s||'').replace(/\s+/g,' ').trim()}
-function annTitle(t){t=String(t);return t==='flags'?'Flags and corrections':t==='lm'?'Last-minute revision':t+'. '+((TOPIC[t]||{}).title||'')}
+function annTitle(t){t=String(t);return t==='flags'?'Flags and corrections':t==='lm'?'Last-minute revision':t==='v26'?'Viva 26 Oct questions':t+'. '+((TOPIC[t]||{}).title||'')}
 function annBlocks(){const r=document.getElementById('refc');return r?sbBlocks(r):[]}
 function annBlockOf(node){const bs=annBlocks();let el=node&&(node.nodeType===1?node:node.parentNode);while(el&&el.id!=='refc'&&el!==document.body){const k=bs.indexOf(el);if(k>=0)return {el,i:k};el=el.parentNode}return null}
 function annHeading(el){const r=document.getElementById('refc');let h='';for(const x of r.querySelectorAll('h3,h4,h5,p.q')){if(x===el||(x.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING))h=annWS(x.textContent);else break}return h.slice(0,140)}
-function annOrder(){const ord=['lm',...TOPICS.map(t=>String(t.n)),'flags'];return Object.entries(annStore()).sort((a,b)=>(ord.indexOf(a[1].t)-ord.indexOf(b[1].t))||(a[1].i-b[1].i))}
+function annOrder(){const ord=['lm','v26',...TOPICS.map(t=>String(t.n)),'flags'];return Object.entries(annStore()).sort((a,b)=>(ord.indexOf(a[1].t)-ord.indexOf(b[1].t))||(a[1].i-b[1].i))}
 function annCount(){return Object.keys(annStore()).length}
 
 // remember the latest selection inside the reader (iOS can clear it when a button is tapped)
